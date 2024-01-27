@@ -1,0 +1,30 @@
+.globl append
+.globl filter
+.globl map
+.globl foldl
+.globl folr
+.globl reverse
+
+append:
+        move    $v0, 0
+        jr      $ra
+
+filter:
+        move    $v0, 0
+        jr      $ra
+
+map:
+        move    $v0, 0
+        jr      $ra
+
+foldl:
+        move    $v0, 0
+        jr      $ra
+
+foldr:
+        move    $v0, 0
+        jr      $ra
+
+reverse:
+        move    $v0, 0
+        jr      $ra

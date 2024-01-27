@@ -173,6 +173,14 @@
         "topics": []
       },
       {
+        "slug": "list-ops",
+        "name": "List Ops",
+        "uuid": "8447b565-3502-47ea-a054-9a1e32fc81b3",
+        "practices": [],
+        "prerequisites": [],
+        "difficulty": 6
+      },
+      {
         "slug": "prime-factors",
         "name": "Prime Factors",
         "uuid": "a54a2049-99d2-4819-bd71-e68c0bfeb7f2",
