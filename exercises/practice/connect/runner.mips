@@ -1,0 +1,169 @@
+#
+# Test winner with some examples
+#
+# s0 - num of tests left to run
+# s1 - address of input board
+# s2 - address of expected output byte
+# s3 - char byte of input
+# s4 - expected output byte
+#
+# winner must:
+# - read input address of board from a0
+# - follow the convention of using the t0-9 registers for temporary storage
+# - (if it uses s0-7 then it is responsible for pushing existing values to the stack then popping them back off before returning)
+# - write the winning player, or '.', to v0
+
+.data
+
+# number of test cases
+n:  .word 12
+# input boards (null terminated)
+ins:  .ascii
+        ". . . . .\n",
+        " . . . . .\n",
+        "  . . . . .\n",
+        "   . . . . .\n",
+        "    . . . . .\n\0",
+
+        "X\n\0",
+
+        "O\n\0",
+
+        "O O O X\n",
+        " X . . X\n",
+        "  X . . X\n",
+        "   X O O O\n\0",
+
+        "X O . .\n",
+        " O X X X\n",
+        "  O X O .\n",
+        "   . O X .\n",
+        "    X X O O\n\0",
+
+        "X . . .\n",
+        " . X O .\n",
+        "  O . X O\n",
+        "   . O . X\n",
+        "    . . O .\n\0",
+
+        ". O . .\n",
+        " O X X X\n",
+        "  O X O .\n",
+        "   X X O X\n",
+        "    . O X .\n\0",
+
+        ". . X .\n",
+        " X X . .\n",
+        "  . X X X\n",
+        "   O O O O\n\0",
+
+        ". . X X\n",
+        " X X . .\n",
+        "  . X X .\n",
+        "   O O O O\n\0",
+
+        ". O . .\n",
+        " O X X X\n",
+        "  O O O .\n",
+        "   X X O X\n",
+        "    . O X .\n\0",
+
+        ". X X . .\n",
+        " X . X . X\n",
+        "  . X . X .\n",
+        "   . X X . .\n",
+        "    O O O O O\n\0",
+
+        "O X X X X X X X X\n",
+        " O X O O O O O O O\n",
+        "  O X O X X X X X O\n",
+        "   O X O X O O O X O\n",
+        "    O X O X X X O X O\n",
+        "     O X O O O X O X O\n",
+        "      O X X X X X O X O\n",
+        "       O O O O O O O X O\n",
+        "        X X X X X X X X O\n\0"
+# expected output values (single characters)
+outs:  .byte
+        '.',
+        'X',
+        'O',
+        '.',
+        '.',
+        '.',
+        'X',
+        'X',
+        'X',
+        'O',
+        'X',
+        'X'
+
+failmsg: .asciiz "failed for test input:\n"
+expectedmsg: .asciiz "expected "
+tobemsg: .asciiz " to be "
+okmsg: .asciiz "all tests passed"
+
+
+.text
+
+runner:
+        lw      $s0, n
+        la      $s1, ins
+        la      $s2, outs
+
+run_test:
+        move    $a0, $s1                # move address of input board to a0
+        jal     winner                  # call subroutine under test
+        move    $v1, $v0                # move return value in v0 to v1 because we need v0 for syscall
+
+        lb      $s4, 0($s2)             # read expected output from memory
+        bne     $v1, $s4, exit_fail     # if expected doesn't match actual, jump to fail
+
+scan:
+        lb      $s3, 0($s1)             # load byte
+        addi    $s1, $s1, 1             # move input address one byte forward
+        bnez    $s3, scan               # repeat until null, leaving s1 past the terminator
+
+        addi    $s2, $s2, 1             # move to next byte in output
+        sub     $s0, $s0, 1             # decrement num of tests left to run
+        bgtz    $s0, run_test           # if more than zero tests to run, jump to run_test
+
+exit_ok:
+        la      $a0, okmsg              # put address of okmsg into a0
+        li      $v0, 4                  # 4 is print string
+        syscall
+
+        li      $v0, 10                 # 10 is exit with zero status (clean exit)
+        syscall
+
+exit_fail:
+        la      $a0, failmsg            # put address of failmsg into a0
+        li      $v0, 4                  # 4 is print string
+        syscall
+
+        move    $a0, $s1                # print input that failed on
+        li      $v0, 4
+        syscall
+
+        la      $a0, expectedmsg
+        li      $v0, 4
+        syscall
+
+        move    $a0, $v1                # print actual that failed on
+        li      $v0, 11                 # 11 -> "print character"
+        syscall
+
+        la      $a0, tobemsg
+        li      $v0, 4
+        syscall
+
+        move    $a0, $s4                # print expected value that failed on
+        li      $v0, 11                 # 11 -> "print character"
+        syscall
+
+        li      $a0, 1                  # set error code to 1
+        li      $v0, 17                 # 17 is exit with error
+        syscall
+
+# # Include your implementation here if you wish to run this from the MARS GUI.
+#.include "impl.mips"

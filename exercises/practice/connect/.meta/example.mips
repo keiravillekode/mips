@@ -1,0 +1,401 @@
+# | Register | Usage        | Type    | Description                          |
+# | -------- | ------------ | ------- | ------------------------------------ |
+# | `$a0`    | input        | address | null-terminated input string         |
+# | `$v0`    | output       | byte    | 'O' or 'X', or '.' if nobody has won |
+# | `$t0-9`  | temporary    | any     | for temporary storage                |
+
+.globl winner
+
+init_parents:
+        li      $t0, 64
+        move    $t1, $zero
+
+.init_parent:
+        add     $t2, $a0, $t1
+        sw      $t1, 0($t2)
+        addi    $t1, $t1, 4
+        bne     $t1, $t0, .init_parent
+
+        jr      $ra
+
+
+root:
+        sll     $a1, $a1, 2
+        j       .fixed_point_check
+
+.reparent:
+        add     $t0, $a0, $a1
+        sh      $t1, 0($t0)
+        move    $a1, $t1
+
+.fixed_point_check:
+        add     $t0, $a0, $a1
+        lh      $t1, 0($t0)
+        add     $t0, $a0, $t1
+        lh      $t1, 0($t0)
+        bne     $a1, $t1, .reparent
+
+        move    $a0, $a1
+        jr      $ra
+
+
+merge:
+        move    $t6, $ra
+        move    $t4, $a0
+        jal     root
+        move    $a3, $a0                # a3 first root
+        move    $a0, $t4
+        move    $a1, $a2
+        jal     root                    # a0 second root
+        beq     $a0, $a3, .merge_ret
+
+        add     $t0, $t4, $a3
+        add     $t1, $t4, $a0
+        lh      $t2, 2($t0)             # first depth
+        lh      $t3, 2($t1)             # second depth
+        bgt     $t2, $t3, .merge_into_first
+
+        blt     $t2, $t3, .merge_into_second
+
+        addi    $t3, $t3, 1
+        sh      $t3, 2($t1)
+
+.merge_into_second:
+        sh      $a0, 0($t0)
+        jr      $t6
+
+.merge_into_first:
+        sh      $a3, 0($t1)
+
+.merge_ret:
+        jr      $t6
+
+# FIX THE REST
+
+find_dimensions:
+        move    $t5, $zero
+        li      $t6, '\n'
+
+.inc_columns:
+        addi    $t5, $t5, 1
+        sll     $t0, $t5, 1
+        subi    $t0, $t0, 1
+        add     $t2, $a0, $t0
+        lb      $t2, 0($t2)
+        bne     $t2, $t6, .inc_columns
+
+        li      $t6, 1
+        sll     $t0, $t5, 1
+        move    $t1, $t0
+        j       .check_null
+
+.inc_rows:
+        addi    $t6, $t6, 1
+        addi    $t1, $t1, 1
+        add     $t0, $t0, $t1
+
+.check_null:
+        add     $t2, $a0, $t0
+        lb      $t2, 0($t2)
+        bnez    $t2, .inc_rows
+
+        jr      $ra
+
+
+index:
+        mul     $a0, $t5, $a1
+        add     $a0, $a0, $a2
+        addi    $a0, $a0, 4
+        jr      $ra
+
+
+occupant:
+        sll     $a1, $a1, 2
+        add     $a1, $a1, $a2
+        addi    $a1, $a1, 1
+        mul     $a1, $a2, $a1
+        srl     $a1, $a1, 1
+        add     $a1, $a1, $a3
+        add     $a1, $a1, $a3
+        add     $a1, $a0, $a1
+        lb      $a0, 0($a1)
+        jr      $ra
+
+
+edge:
+        move    $v1, $ra
+        move    $t4, $a0
+        move    $t5, $a2
+
+        move    $a0, $a1
+        move    $a1, $t5
+        move    $a2, $a3
+        move    $a3, $t7
+        jal     occupant
+        bne     $a0, $t9, .edge_ret
+
+        move    $a1, $a2
+        move    $a2, $a3
+        jal     index
+        move    $a2, $a0
+        move    $a0, $t4
+        move    $a1, $t8
+        jal     merge
+
+.edge_ret:
+        jr      $v1
+
+
+adjacent:
+        move    $v1, $ra
+        move    $t4, $a0
+        move    $t3, $a1
+
+        move    $t0, $a3
+        move    $t1, $t7
+
+        move    $a0, $t3
+        move    $a1, $t5
+        move    $a2, $a3
+        move    $a3, $t7
+        jal     occupant
+        move    $t2, $a0
+
+        move    $a0, $t3
+        move    $a1, $t5
+        move    $a2, $t8
+        move    $a3, $t9
+        jal     occupant
+
+        bne     $a0, $t2, .adjacent_ret
+
+        move    $a1, $t0
+        move    $a2, $t1
+        jal     index
+        move    $t0, $a0
+
+        move    $a1, $t8
+        move    $a2, $t9
+        jal     index
+
+        move    $a1, $t0
+        move    $a2, $a0
+        move    $a0, $t4
+        move    $ra, $v1
+        j       merge
+
+.adjacent_ret:
+        jr      $v1
+
+
+edges:
+        subi    $sp, $sp, 16
+        sw      $ra, 12($sp)
+        sw      $s0, 8($sp)
+        sw      $s1, 4($sp)
+        sw      $s2, 0($sp)
+
+        move    $t4, $a0
+        move    $s0, $a1
+        move    $s2, $zero
+
+.next_j:
+                                        # top edge
+        move    $a0, $t4
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $zero
+        move    $t7, $s2
+        li      $t8, 0
+        li      $t9, 'O'
+        jal     edge
+
+                                        # bottom edge
+        move    $a0, $t4
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $t6
+        addi    $a3, $a3, -1
+        move    $t7, $s2
+        li      $t8, 1
+        li      $t9, 'O'
+        jal     edge
+
+        addi    $s2, $s2, 1
+        bne     $s2, $t5, .next_j
+
+        move    $s2, $zero
+
+.next_i:
+                                        # left edge
+        move    $a0, $t4
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $s2
+        move    $t7, $zero
+        li      $t8, 2
+        li      $t9, 'X'
+        jal     edge
+
+                                        # right edge
+        move    $a0, $t4
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $s2
+        move    $t7, $t5
+        subi    $t7, $t7, 1
+        li      $t8, 3
+        li      $t9, 'X'
+        jal     edge
+
+        addi    $s2, $s2, 1
+        bne     $s2, $t6, .next_i
+
+        lw      $s2, 0($sp)
+        lw      $s1, 4($sp)
+        lw      $s0, 8($sp)
+        lw      $ra, 12($sp)
+        addi    $sp, $sp, 16
+        jr      $ra
+
+
+adjacents:
+        subi    $sp, $sp, 16
+        sw      $ra, 12($sp)
+        sw      $s0, 8($sp)
+        sw      $s1, 4($sp)
+        sw      $s2, 0($sp)
+
+        move    $t4, $a0
+        move    $s0, $a1
+        move    $s1, $zero                # i
+
+.adjacents_next_i:
+        move    $s2, $zero                # j
+
+.adjacents_next_j:
+
+        beqz    $s2, .skip_horizontal
+
+        move    $a0, $t4
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $s1
+        move    $t7, $s2
+        move    $t8, $s1
+        move    $t9, $s2
+        subi    $t9, $t9, 1
+        jal     adjacent
+
+.skip_horizontal:
+
+        beqz    $s1, .skip_forwards
+        beqz    $s2, .skip_forwards
+
+        move    $a0, $t4
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $s1
+        move    $t7, $s2
+        subi    $t7, $t7, 1
+        move    $t8, $s1
+        subi    $t8, $t8, 1
+        move    $t9, $s2
+        jal     adjacent
+
+.skip_forwards:
+
+        beqz    $s1, .skip_backwards
+
+        move    $a0, $t4
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $s1
+        move    $t7, $s2
+        move    $t8, $s1
+        subi    $t8, $t8, 1
+        move    $t9, $s2
+        jal     adjacent
+
+.skip_backwards:
+
+        addi    $s2, $s2, 1
+        bne     $s2, $t5, .adjacents_next_j
+
+        addi    $s1, $s1, 1
+        bne     $s1, $t6, .adjacents_next_i
+
+        lw      $s2, 0($sp)
+        lw      $s1, 4($sp)
+        lw      $s0, 8($sp)
+        lw      $ra, 12($sp)
+        addi    $sp, $sp, 16
+        jr      $ra
+
+
+winner:
+        subi    $sp, $sp, 16
+        sw      $ra, 12($sp)
+        sw      $s0, 8($sp)
+
+        move    $s0, $a0
+        jal     find_dimensions
+                                        # t5 = number of columns
+                                        # t6 = number of rows
+
+        subi    $sp, $sp, 2032
+
+        move    $a0, $sp
+        move    $a1, $t6
+        move    $a2, $t5
+        jal     init_parents
+
+        move    $a0, $sp
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $t6
+        jal     edges
+
+        move    $a0, $sp
+        move    $a1, $s0
+        move    $a2, $t5
+        move    $a3, $t6
+        jal     adjacents
+
+        move    $a0, $sp
+        li      $a1, 0
+        jal     root
+        move    $t3, $a0
+
+        move    $a0, $sp
+        li      $a1, 1
+        jal     root
+        beq     $t3, $a0, .winner_o
+
+        move    $a0, $sp
+        li      $a1, 2
+        jal     root
+        move    $t3, $a0
+
+        move    $a0, $sp
+        li      $a1, 3
+        jal     root
+        beq     $t3, $a0, .winner_x
+
+        li      $v0, '.'
+
+.winner_ret:
+        addi    $sp, $sp, 2032
+
+        lw      $s0, 8($sp)
+        lw      $ra, 12($sp)
+        addi    $sp, $sp, 16
+        jr      $ra
+
+.winner_o:
+       li       $v0, 'O'
+       j        .winner_ret
+
+.winner_x:
+       li       $v0, 'X'
+       j        .winner_ret

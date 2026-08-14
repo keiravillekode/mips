@@ -84,7 +84,7 @@ verify_exercises() {
     ((count > 0)) || die 'no matching exercises found!'
 }
 
-pull_docker_image
+# pull_docker_image
 
 exercise_slug="${1:-*}"
 verify_exercises "${exercise_slug}"
